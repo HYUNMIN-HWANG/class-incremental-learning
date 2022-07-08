@@ -52,7 +52,7 @@ def incremental_train_and_eval(the_args, epochs, fusion_vars, ref_fusion_vars, b
     tg_optimizer, tg_lr_scheduler, fusion_optimizer, fusion_lr_scheduler, trainloader, testloader, iteration, \
     start_iteration, X_protoset_cumuls, Y_protoset_cumuls, order_list, the_lambda, dist, \
     K, lw_mr, balancedloader, fix_bn=False, weight_per_class=None, device=None):
-
+    # import ipdb; ipdb.set_trace()
     # Setting up the CUDA device
     if device is None:
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -73,6 +73,7 @@ def incremental_train_and_eval(the_args, epochs, fusion_vars, ref_fusion_vars, b
         ref_b2_model.eval()
 
     for epoch in range(epochs):
+        # import ipdb; ipdb.set_trace()
         # Start training for the current phase, set the two branch models to the training mode
         b1_model.train()
         b2_model.train()
@@ -101,6 +102,7 @@ def incremental_train_and_eval(the_args, epochs, fusion_vars, ref_fusion_vars, b
         print(tg_lr_scheduler.get_lr()[0])
 
         for batch_idx, (inputs, targets) in enumerate(trainloader):
+            # import ipdb; ipdb.set_trace()
 
             # Get a batch of training samples, transfer them to the device
             inputs, targets = inputs.to(device), targets.to(device)
@@ -126,11 +128,12 @@ def incremental_train_and_eval(the_args, epochs, fusion_vars, ref_fusion_vars, b
             outputs_bs = torch.cat((old_scores, new_scores), dim=1)
             assert(outputs_bs.size()==outputs.size())
             gt_index = torch.zeros(outputs_bs.size()).to(device)
-            gt_index = gt_index.scatter(1, targets.view(-1,1), 1).ge(0.5)
-            gt_scores = outputs_bs.masked_select(gt_index)
+            gt_index = gt_index.scatter(1, targets.view(-1,1), 1).ge(0.5)       # 0.5를 기준으로 더 크면 True, 작으면 False
+            gt_scores = outputs_bs.masked_select(gt_index)                      # True인 값만 저장한다. > 128개
+            
             max_novel_scores = outputs_bs[:, num_old_classes:].topk(K, dim=1)[0]
-            hard_index = targets.lt(num_old_classes)
-            hard_num = torch.nonzero(hard_index).size(0)
+            hard_index = targets.lt(num_old_classes)        # num_old_classes보다 작은 값을 True, 큰 값을 False로 return 
+            hard_num = torch.nonzero(hard_index).size(0)    # True 개수
             if hard_num > 0:
                 gt_scores = gt_scores[hard_index].view(-1, 1).repeat(1, K)
                 max_novel_scores = max_novel_scores[hard_index]
@@ -165,12 +168,13 @@ def incremental_train_and_eval(the_args, epochs, fusion_vars, ref_fusion_vars, b
      
         for batch_idx, (inputs, targets) in enumerate(balancedloader):
             if batch_idx <= 500:
+                # import ipdb; ipdb.set_trace()
                 inputs, targets = inputs.to(device), targets.to(device)
                 outputs, _ = process_inputs_fp(the_args, fusion_vars, b1_model, b2_model, inputs)
                 loss = nn.CrossEntropyLoss(weight_per_class)(outputs, targets)
                 loss.backward()
                 fusion_optimizer.step()
-
+        # import ipdb; ipdb.set_trace()
         # Running the test for this epoch
         b1_model.eval()
         b2_model.eval()
@@ -187,7 +191,8 @@ def incremental_train_and_eval(the_args, epochs, fusion_vars, ref_fusion_vars, b
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
         print('Test set: {} test loss: {:.4f} accuracy: {:.4f}'.format(len(testloader), test_loss/(batch_idx+1), 100.*correct/total))
-
+        # import ipdb; ipdb.set_trace()
+        
     print("Removing register forward hook")
     handle_ref_features.remove()
     handle_cur_features.remove()

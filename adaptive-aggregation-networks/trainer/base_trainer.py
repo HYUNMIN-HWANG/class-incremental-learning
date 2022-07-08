@@ -290,12 +290,13 @@ class BaseTrainer(object):
           the_lambda_mult, cur_the_lambda: the_lambda-related parameters for the current phase
           last_iter: the iteration index for last phase
         """
+        # import ipdb; ipdb.set_trace()
         if iteration == start_iter:
             # The 0th phase
             # Set the index for last phase to 0
             last_iter = 0
             # For the 0th phase, use the conventional ResNet
-            b1_model = self.network(num_classes=self.args.nb_cl_fg)
+            b1_model = self.network(num_classes=self.args.nb_cl_fg) # 첫 phase에 입력한 class 개수
             # Get the information about the input and output features from the network
             in_features = b1_model.fc.in_features
             out_features = b1_model.fc.out_features
@@ -316,15 +317,17 @@ class BaseTrainer(object):
             self.ref_fusion_vars = copy.deepcopy(self.fusion_vars)
             # Set the 1st branch for the 1st phase
             if self.args.branch_1 == 'ss':
-                b1_model = self.network_mtl(num_classes=self.args.nb_cl_fg)
+                b1_model = self.network_mtl(num_classes=self.args.nb_cl_fg) # modified ResNet
             else:
                 b1_model = self.network(num_classes=self.args.nb_cl_fg)
+
             # Load the model parameters trained last phase to the current phase model
             ref_dict = ref_model.state_dict()
             tg_dict = b1_model.state_dict()
             tg_dict.update(ref_dict)
             b1_model.load_state_dict(tg_dict)
             b1_model.to(self.device)
+
             # Set the 2nd branch for the 1st phase
             if self.args.branch_2 == 'ss':
                 b2_model = self.network_mtl(num_classes=self.args.nb_cl_fg)
@@ -335,16 +338,24 @@ class BaseTrainer(object):
             b2_dict.update(ref_dict)
             b2_model.load_state_dict(b2_dict)
             b2_model.to(self.device)
+
             # Get the information about the input and output features from the network
             in_features = b1_model.fc.in_features
             out_features = b1_model.fc.out_features
+
             # Print the information about the input and output features
             print("Feature:", in_features, "Class:", out_features)
+
+            # SplitCosineLinear : 
+            ## self.fc1 = CosineLinear(in_features, out_features1, False)
+            ## self.fc2 = CosineLinear(in_features, out_features2, False)
+            ## self.out_features = out_features1 + out_features2
             new_fc = modified_linear.SplitCosineLinear(in_features, out_features, self.args.nb_cl)
-            # Set the final FC layer for classification
+            # Set the final FC layer for classification >> b1_model에 붙인다.
             new_fc.fc1.weight.data = b1_model.fc.weight.data
             new_fc.sigma.data = b1_model.fc.sigma.data
             b1_model.fc = new_fc
+
             # Update the lambda parameter for the current phase
             the_lambda_mult = out_features*1.0 / self.args.nb_cl
             # The 2nd branch doesn't have reference model, set it to None
@@ -480,18 +491,23 @@ class BaseTrainer(object):
         Returns:
           b1_model: the 1st branch model from the current phase, the FC classifier is updated
         """
+        # import ipdb; ipdb.set_trace()
         if self.args.dataset == 'cifar100':
             # Load previous FC weights, transfer them from GPU to CPU
             old_embedding_norm = b1_model.fc.fc1.weight.data.norm(dim=1, keepdim=True)
             average_old_embedding_norm = torch.mean(old_embedding_norm, dim=0).to('cpu').type(torch.DoubleTensor)
+
             # tg_feature_model is b1_model without the FC layer
             tg_feature_model = nn.Sequential(*list(b1_model.children())[:-1])
+
             # Get the shape of the feature inputted to the FC layers, i.e., the shape for the final feature maps
             num_features = b1_model.fc.in_features
+
             # Intialize the new FC weights with zeros
             novel_embedding = torch.zeros((self.args.nb_cl, num_features))
+
             for cls_idx in range(iteration*self.args.nb_cl, (iteration+1)*self.args.nb_cl):
-                # Get the indexes of samples for one class
+                # Get the indexes of samples for one class (ex, 50번째 index를 갖는 데이터 True로 표시)
                 cls_indices = np.array([i == cls_idx  for i in map_Y_train])
                 # Check the number of samples in this class
                 assert(len(np.where(cls_indices==1)[0])==dictionary_size)
@@ -695,6 +711,7 @@ class BaseTrainer(object):
         Return:
           balancedloader: the balanced dataloader for the exemplars
         """
+        # import ipdb; ipdb.set_trace()
         if self.args.dataset == 'cifar100':
             # Load the training samples for the current phase
             X_train_this_step = X_train_total[indices_train_10]
@@ -756,13 +773,15 @@ class BaseTrainer(object):
           top1_acc_list_ori: the list to store the results for the 0th classes, updated
           top1_acc_list_cumul: the list to store the results for the current phase, updated
         """
-
+        # import ipdb; ipdb.set_trace()
         # Get tg_feature_model, which is a model copied from b1_model, without the FC layer
         tg_feature_model = nn.Sequential(*list(b1_model.children())[:-1])
         # Get the class mean values for all seen classes
-        current_means = class_means[:, order[range(0,(iteration+1)*self.args.nb_cl)]]
-
+        current_means = class_means[:, order[range(0,(iteration+1)*self.args.nb_cl)]]  # (0, 50)번째 class의 means
+        
+        ###  the 0th-phase validation samples  ### 
         # Get mapped labels for the 0-th phase data, according the the order list
+        # valid order list에 있는 것들을 order list에 인덱스 값으로 매핑시킨다.
         map_Y_valid_ori = np.array([order_list.index(i) for i in Y_valid_ori])
         print('Computing accuracy on the 0-th phase classes...')
         # Set a temporary dataloader for the 0-th phase data
@@ -787,6 +806,8 @@ class BaseTrainer(object):
         # Write the results to tensorboard
         self.train_writer.add_scalar('ori_acc/fc', float(ori_acc[0]), iteration)
         self.train_writer.add_scalar('ori_acc/proto', float(ori_acc[1]), iteration)
+
+        ###  old exemplar samples  ###
         # Get mapped labels for the current-phase data, according the the order list
         map_Y_valid_cumul = np.array([order_list.index(i) for i in Y_valid_cumul])
         # Set a temporary dataloader for the current-phase data

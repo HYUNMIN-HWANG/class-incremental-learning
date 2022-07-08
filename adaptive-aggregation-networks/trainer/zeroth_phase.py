@@ -23,7 +23,7 @@ import torch.nn.functional as F
 def incremental_train_and_eval_zeroth_phase(the_args, epochs, b1_model, ref_model, \
     tg_optimizer, tg_lr_scheduler, trainloader, testloader, iteration, start_iteration, \
     lamda, dist, K, lw_mr, fix_bn=False, weight_per_class=None, device=None):
-
+    # import ipdb; ipdb.set_trace()
     # Setting up the CUDA device
     if device is None:
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -54,12 +54,19 @@ def incremental_train_and_eval_zeroth_phase(the_args, epochs, b1_model, ref_mode
         print(tg_lr_scheduler.get_lr()[0])
 
         for batch_idx, (inputs, targets) in enumerate(trainloader):
+            # import ipdb; ipdb.set_trace()
             # Get a batch of training samples, transfer them to the device
             inputs, targets = inputs.to(device), targets.to(device)
+            # inputs : torch.Size([128, 3, 32, 32])
+            # targets : torch.Size([128])
+
             # Clear the gradient of the paramaters for the tg_optimizer
             tg_optimizer.zero_grad()
+
             # Forward the samples in the deep networks
             outputs = b1_model(inputs)
+            # outputs : torch.Size([128, 50])
+
             # Compute classification loss
             loss = nn.CrossEntropyLoss(weight_per_class)(outputs, targets)
             # Backward and update the parameters
@@ -67,10 +74,10 @@ def incremental_train_and_eval_zeroth_phase(the_args, epochs, b1_model, ref_mode
             tg_optimizer.step()
             # Record the losses and the number of samples to compute the accuracy
             train_loss += loss.item()
-            _, predicted = outputs.max(1)
+            _, predicted = outputs.max(1)   # predicted : outputs[i] 예측한 값 중에서 가장 큰 값
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
-
+        # import ipdb; ipdb.set_trace()
         # Print the training losses and accuracies
         print('Train set: {}, train loss: {:.4f} accuracy: {:.4f}'.format(len(trainloader), train_loss/(batch_idx+1), 100.*correct/total))
 
@@ -81,6 +88,7 @@ def incremental_train_and_eval_zeroth_phase(the_args, epochs, b1_model, ref_mode
         total = 0
         with torch.no_grad():
             for batch_idx, (inputs, targets) in enumerate(testloader):
+                # import ipdb; ipdb.set_trace()
                 inputs, targets = inputs.to(device), targets.to(device)
                 outputs = b1_model(inputs)
                 loss = nn.CrossEntropyLoss(weight_per_class)(outputs, targets)
@@ -89,5 +97,5 @@ def incremental_train_and_eval_zeroth_phase(the_args, epochs, b1_model, ref_mode
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
         print('Test set: {} test loss: {:.4f} accuracy: {:.4f}'.format(len(testloader), test_loss/(batch_idx+1), 100.*correct/total))
-
+        # import ipdb; ipdb.set_trace()
     return b1_model

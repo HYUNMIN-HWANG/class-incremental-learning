@@ -54,11 +54,12 @@ class Trainer(BaseTrainer):
         This trianer is based on the base_trainer.py in the same folder.
         If you hope to find the source code of the functions used in this trainer, you may find them in base_trainer.py.
         """
-        
+        # import ipdb; ipdb.set_trace()
         # Set tensorboard recorder
         self.train_writer = SummaryWriter(comment=self.save_path)
 
         # Initial the array to store the accuracies for each phase
+        # self.args.nb_cl : 각 phase 당 class 개수
         top1_acc_list_cumul = np.zeros((int(self.args.num_classes/self.args.nb_cl), 3, 1))
         top1_acc_list_ori = np.zeros((int(self.args.num_classes/self.args.nb_cl), 3, 1))
 
@@ -81,6 +82,8 @@ class Trainer(BaseTrainer):
         Y_train_cumuls    = []
 
         # Initialize the prototypes
+        # prototypes : 모든 train data가 포함되어 있다. (100, 500, 32, 32, 3)
+        # alpha_dr_herding : 선택된 examplars들의 index가 포함될 예정, 여기서는 zero로 채워져 있음 (10, 500, 10)
         alpha_dr_herding, prototypes = self.init_prototypes(self.dictionary_size, order, X_train_total, Y_train_total)
 
         # Set the starting iteration
@@ -96,6 +99,7 @@ class Trainer(BaseTrainer):
         the_lambda_mult = None
 
         for iteration in range(start_iter, int(self.args.num_classes/self.args.nb_cl)):
+            # import ipdb; ipdb.set_trace()
             ### Initialize models for the current phase
             b1_model, b2_model, ref_model, ref_b2_model, lambda_mult, cur_lambda, last_iter = self.init_current_phase_model(iteration, start_iter, b1_model, b2_model)
 
@@ -139,6 +143,7 @@ class Trainer(BaseTrainer):
                 b2_model = torch.load(ckp_name_b2)
             else:
                 # Start training (if we don't resume the models from the checkppoints)
+                # import ipdb; ipdb.set_trace()
     
                 # Set the optimizer
                 tg_optimizer, tg_lr_scheduler, fusion_optimizer, fusion_lr_scheduler = self.set_optimizer(iteration, \
@@ -146,7 +151,7 @@ class Trainer(BaseTrainer):
 
                 if iteration > start_iter:
                     # Training the class-incremental learning system from the 1st phase
-
+                    # import ipdb; ipdb.set_trace()
                     # Set the balanced dataloader
                     balancedloader = self.gen_balanced_loader(X_train_total, Y_train_total, indices_train_10, X_protoset, Y_protoset, order_list)
 
@@ -166,10 +171,11 @@ class Trainer(BaseTrainer):
                         raise ValueError('Please set the correct baseline.')       
                 else:         
                     # Training the class-incremental learning system from the 0th phase           
+                    # import ipdb; ipdb.set_trace()
                     b1_model = incremental_train_and_eval_zeroth_phase(self.args, self.args.epochs, b1_model, \
                         ref_model, tg_optimizer, tg_lr_scheduler, trainloader, testloader, iteration, start_iter, \
                         cur_lambda, self.args.dist, self.args.K, self.args.lw_mr) 
-
+            # import ipdb; ipdb.set_trace()
             # Select the exemplars according to the current model
             X_protoset_cumuls, Y_protoset_cumuls, class_means, alpha_dr_herding = self.set_exemplar_set(b1_model, b2_model, \
                 is_start_iteration, iteration, last_iter, order, alpha_dr_herding, prototypes)

@@ -14,6 +14,7 @@ import time
 
 def check_memory(cuda_device):
     """ Check the total memory and occupied memory for GPU """
+    # import ipdb; ipdb.set_trace()
     devices_info = os.popen('"/usr/bin/nvidia-smi" --query-gpu=memory.total,memory.used --format=csv,nounits,noheader').read().strip().split("\n")
     total, used = devices_info[int(cuda_device)].split(',')
     return total,used
@@ -24,6 +25,7 @@ def occupy_memory(cuda_device):
     It is used to ensure that this process won't be stopped when it requires additional GPU memory.
     Be careful with this operation. It will influence other people when you are sharing GPUs with others.
     """
+    # import ipdb; ipdb.set_trace()
     total, used = check_memory(cuda_device)
     total = int(total)
     used = int(used)

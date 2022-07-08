@@ -13,7 +13,7 @@ import torch.nn as nn
 from utils.misc import *
 
 def process_inputs_fp(the_args, fusion_vars, b1_model, b2_model, inputs, feature_mode=False):
-
+    # import ipdb; ipdb.set_trace()
     # The 1st level
     if the_args.dataset == 'cifar100':
         b1_model_group1 = [b1_model.conv1, b1_model.bn1, b1_model.relu, b1_model.layer1]
@@ -23,15 +23,16 @@ def process_inputs_fp(the_args, fusion_vars, b1_model, b2_model, inputs, feature
         b2_model_group1 = [b2_model.conv1, b2_model.bn1, b2_model.relu, b2_model.maxpool, b2_model.layer1]
     else:
         raise ValueError('Please set correct dataset.')
+    
     b1_model_group1 = nn.Sequential(*b1_model_group1)
-    b1_fp1 = b1_model_group1(inputs)
+    b1_fp1 = b1_model_group1(inputs)                        # torch.Size([128, 16, 32, 32])
     b2_model_group1 = nn.Sequential(*b2_model_group1)
-    b2_fp1 = b2_model_group1(inputs)
-    fp1 = fusion_vars[0]*b1_fp1+(1-fusion_vars[0])*b2_fp1
+    b2_fp1 = b2_model_group1(inputs)                        # torch.Size([128, 16, 32, 32])
+    fp1 = fusion_vars[0]*b1_fp1+(1-fusion_vars[0])*b2_fp1   # Level1에서 나온 feature값 fp와 weight값 fusion_vars를 곱한다. 
 
     # The 2nd level
     b1_model_group2 = b1_model.layer2
-    b1_fp2 = b1_model_group2(fp1)
+    b1_fp2 = b1_model_group2(fp1)                           # The 1st level의 output이 두 번째 모델의 input이 된다.
     b2_model_group2 = b2_model.layer2
     b2_fp2 = b2_model_group2(fp1)
     fp2 = fusion_vars[1]*b1_fp2+(1-fusion_vars[1])*b2_fp2
@@ -46,13 +47,13 @@ def process_inputs_fp(the_args, fusion_vars, b1_model, b2_model, inputs, feature
     else:
         raise ValueError('Please set correct dataset.')
     b1_model_group3 = nn.Sequential(*b1_model_group3)
-    b1_fp3 = b1_model_group3(fp2)
+    b1_fp3 = b1_model_group3(fp2)                       # The 2nd level의 output이 세 번째 모델의 input이 된다.
     b2_model_group3 = nn.Sequential(*b2_model_group3)
     b2_fp3 = b2_model_group3(fp2)
     fp3 = fusion_vars[2]*b1_fp3+(1-fusion_vars[2])*b2_fp3
 
     if the_args.dataset == 'cifar100': 
-        fp_final = fp3.view(fp3.size(0), -1)
+        fp_final = fp3.view(fp3.size(0), -1)            # torch.Size([128, 64, 1, 1]) -> torch.Size([128, 64])
     elif the_args.dataset == 'imagenet_sub' or the_args.dataset == 'imagenet':
         # The 4th level
         b1_model_group4 = [b1_model.layer4, b1_model.avgpool]
